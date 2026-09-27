@@ -1,0 +1,51 @@
+import mongoose from "mongoose";
+
+const roundSchema = new mongoose.Schema(
+  {
+    hackathonId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Hackathon",
+      required: true,
+    },
+    roundNumber: {
+      type: Number,
+      required: true,
+    },
+    roundName: {
+      type: String,
+      required: true,
+    },
+    roundType: {
+      type: String,
+      required: true,
+    },
+    judgingCriteria: {
+      type: String,
+      required: true,
+    },
+    winners: {
+      type: [String],
+      default: [],
+    },
+    startDate: {
+      type: Date,
+      required: true,
+    },
+    endDate: {
+      type: Date,
+      required: true,
+    },
+    // Rounds used to be hard-deleted once winners were announced, which
+    // destroyed submission history. Now they're archived instead.
+    status: {
+      type: String,
+      enum: ["active", "completed"],
+      default: "active",
+    },
+  },
+  { timestamps: true }
+);
+
+export const Round = mongoose.model("Round", roundSchema);
+
+
