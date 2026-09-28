@@ -9,7 +9,10 @@ import AvatarDropdown from '../AvatarDropdown';
 
 const Header = () => {
   const authStatus = useSelector((state)=>state.auth?.status)
-  
+  const userData = useSelector((state)=>state.auth?.userData)
+  const isAdmin = userData?.role === "admin"
+  const canOrganize = userData?.role === "organizer" || isAdmin
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -35,15 +38,22 @@ const Header = () => {
               <Link to="/browse-events" className= " eb text-gray-900 dark:text-yellow-400 hover:text-yellow-600 dark:hover:text-yellow-300 px-3 py-2 text-sm font-medium">
                  Browse Events
               </Link>
+              {canOrganize && (
               <Link to="/organize" className="eb text-gray-900 dark:text-yellow-400 hover:text-yellow-600 dark:hover:text-yellow-300 px-3 py-2 text-sm font-medium">
                 organize
               </Link>
+              )}
               <Link to="/resources" className="eb text-gray-900 dark:text-yellow-400 hover:text-yellow-600 dark:hover:text-yellow-300 px-3 py-2 text-sm font-medium">
                 Resources
               </Link>
               <Link to="/about" className="eb text-gray-900 dark:text-yellow-400 hover:text-yellow-600 dark:hover:text-yellow-300 px-3 py-2 text-sm font-medium">
                 About
               </Link>
+              {isAdmin && (
+                <Link to="/admin" className="eb text-gray-900 dark:text-yellow-400 hover:text-yellow-600 dark:hover:text-yellow-300 px-3 py-2 text-sm font-medium">
+                  Admin
+                </Link>
+              )}
             </div>
           </div>
 
@@ -103,8 +113,10 @@ const Header = () => {
             <div className="px-2 pt-2 pb-3 space-y-1">
               {[
                 ["Browse Events", '/browse-events'],
-                ['Resources', '/'],
+                ...(canOrganize ? [['Organize', '/organize']] : []),
+                ['Resources', '/resources'],
                 ['About', '/about'],
+                ...(isAdmin ? [['Admin', '/admin']] : []),
               ].map(([title, path]) => (
                 <Link
                   key={path}

@@ -22,7 +22,7 @@ function Signup() {
 
     try {
       const response = await authService.createAccount(data)
-      if(response.status==200)navigate("/login");
+      if(response?.user)navigate("/login");
     } catch (err) {
       setError("Signup failed, please try again.");
       console.log(err);
@@ -88,6 +88,14 @@ function Signup() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
                 <Input type="password" placeholder="Enter your password" {...register("password", { required: "Password is required" })} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">I want to</label>
+                <select defaultValue="participant" className="block w-full border border-gray-300 rounded-lg p-2.5 bg-white" {...register("role")}>
+                  <option value="participant">Participate in hackathons</option>
+                  <option value="organizer">Organize hackathons</option>
+                </select>
               </div>
 
               <button type="submit" className="w-full bg-yellow-400 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md" disabled={loading}>

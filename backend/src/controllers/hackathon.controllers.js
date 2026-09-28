@@ -3,6 +3,7 @@ import { Hackathon } from '../models/hackathon.model.js'
 import uploadOnCloudinary from '../utils/cloudinary.js'
 import { Round } from '../models/round.model.js'
 import { Submission } from "../models/submission.model.js"
+import { Team } from "../models/team.model.js"
 
 export const browseHackathons = async (req, res) => {
     try {
@@ -138,6 +139,31 @@ export const getSubmissionsForHackathon = async (req, res) => {
             .populate("teamId");
 
         return res.status(200).json({ success: true, submissions });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only (see hackathonOrganizer.routes.js). No delete endpoint
+// existed before this — if one had been added naively, it would have
+// orphaned every Round/Team/Submission referencing this hackathon, since
+// MongoDB doesn't enforce cascade delete the way SQL foreign keys do.
+export const deleteHackathon = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const hackathon = await Hackathon.findByIdAndDelete(id);
+        if (!hackathon) return res.status(404).json({ message: "Hackathon not found" });
+
+        await Round.deleteMany({ hackathonId: id });
+        await Team.deleteMany({ hackathonId: id });
+        await Submission.deleteMany({ hackathonId: id });
+        await User.updateMany(
+            { ownedHackathons: id },
+            { $pull: { ownedHackathons: id } }
+        );
+
+        return res.status(200).json({ success: true, message: "Hackathon and all related data deleted" });
     } catch (error) {
         return res.status(500).json({ message: error.message });
     }

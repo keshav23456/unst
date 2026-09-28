@@ -2,7 +2,7 @@
 
 A full-stack hackathon organizing platform. Organizers create hackathons with a prize pool and a sequence of rounds; participants form teams and submit projects each round.
 
-**Stack:** React + Vite + Redux Toolkit (frontend) · Node.js + Express + MongoDB (backend) · JWT auth · Cloudinary for image uploads.
+**Stack:** React + Vite + Redux Toolkit (frontend) · Node.js + Express + MongoDB (backend) · JWT auth with role-based access control (admin / organizer / participant) · Cloudinary for image uploads.
 
 > This is the fixed build. See [`FIXES.md`](./FIXES.md) for every bug found and fixed, and [`FLOWS_AND_BUGS.md`](./FLOWS_AND_BUGS.md) for the original audit. The project's earlier blockchain/smart-contract layer is out of scope here — see the note at the bottom.
 
@@ -10,18 +10,38 @@ A full-stack hackathon organizing platform. Organizers create hackathons with a 
 
 ## What it does
 
-**Organizers**
+**Organizers** *(role auto-granted the first time a user creates a hackathon)*
 - Create a hackathon: name, description, banner image, prize pool, max team size, number of rounds
 - Add rounds one at a time as the event progresses
 - View all submissions for their hackathon
 - Announce round winners — automatically opens the next round, or finalizes the hackathon on the last round
 
-**Participants**
+**Participants** *(default role for every new account)*
 - Browse all hackathons
 - Create a team (become team leader) or join an existing team by ID, up to the hackathon's max team size
 - Submit a project per round — a live project URL and a GitHub repo link
+- A `/resources` page with guides on participating, organizing, and judging criteria
+
+**Admins** *(role set manually in the database — see SETUP.md)*
+- View every user on the platform and their role
+- Delete any hackathon (with full cascade cleanup of its rounds/teams/submissions), regardless of who owns it
 
 ---
+
+## Roles & access (RBAC)
+
+Three roles, stored on the user and checked on the server for every request:
+
+| | Participant | Organizer | Admin |
+|---|:-:|:-:|:-:|
+| Browse events, view teams | ✅ | ✅ | ✅ |
+| Create / join a team, submit a project | ✅ | – | – |
+| Create a hackathon | – | ✅ | ✅ |
+| Add rounds, view submissions, announce winners | – | own hackathons | any hackathon |
+| List users, change roles, delete hackathons | – | – | ✅ |
+
+- **How you get a role:** you pick *participant* or *organizer* at signup. *Admin* can't be self-selected: the account whose email matches the `ADMIN_EMAIL` env var becomes admin on login, and admins can change anyone else's role from the Admin dashboard.
+- **Enforcement:** `verifyJWT` (who are you) → `requireRole(...)` (is your role allowed) → `verifyHackathonOwner` (do you own this hackathon; admins bypass). The role is read from the database on each request, so a role change applies immediately. The frontend also hides links and guards routes by role, but that is only convenience.
 
 ## Project structure
 
@@ -167,6 +187,7 @@ If login/signup fails with a CORS error in the browser console, double check `CO
 | `REFRESH_TOKEN_SECRET` | Yes | Random string, different from access token secret |
 | `REFRESH_TOKEN_EXPIRY` | Yes | e.g. `10d` |
 | `CORS_ORIGINS` | Recommended | Comma-separated frontend URL(s) allowed to call the API |
+| `ADMIN_EMAIL` | Recommended | Email that gets the `admin` role on login; keep it private and register it first |
 | `COOKIE_DOMAIN` | No | Only needed if sharing cookies across subdomains |
 | `CLOUDINARY_CLOUD_NAME` | Yes | From Cloudinary dashboard |
 | `CLOUDINARY_API_KEY` | Yes | From Cloudinary dashboard |
@@ -183,4 +204,3 @@ If login/signup fails with a CORS error in the browser console, double check `CO
 ## Out of scope
 
 The original project included a Solidity smart-contract layer (`ethers.js`, on-chain prize escrow/voting) running in parallel with the MongoDB backend. That layer is not part of this fixed build — the backend's MetaMask auth route was removed, and while a couple of frontend wallet-UI components still exist in the tree, they're inert (nothing on the backend for them to call). See `FIXES.md` for details if you want to remove them fully or reintroduce the contract layer later.
-# unst

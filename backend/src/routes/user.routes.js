@@ -6,9 +6,12 @@ import { changeCurrentPassword,
          refreshAccessToken,
          registerUser,
          updateAccountDetails,
-         updateUserAvatar } from '../controllers/user.controllers.js';
+         updateUserAvatar,
+         getAllUsers,
+         updateUserRole } from '../controllers/user.controllers.js';
 import { verifyJWT } from '../middleware/verifyJWT.middleware.js';
 import { upload } from '../middleware/multer.middleware.js';
+import { requireRole } from '../middleware/requireRole.middleware.js';
 
 const router = Router();
 
@@ -23,5 +26,8 @@ router.route("/current-user").get(verifyJWT, getCurrentUser);
 router.route("/refresh-token").post(refreshAccessToken);
 router.route("/update-details").post(verifyJWT, updateAccountDetails);
 router.route("/update-avatar").post(verifyJWT, upload.single("avatar"), updateUserAvatar);
+router.route("/admin/users").get(verifyJWT, requireRole("admin"), getAllUsers);
+// PUT, not PATCH: CORS in app.js only allows GET/POST/PUT/DELETE.
+router.route("/admin/users/:id/role").put(verifyJWT, requireRole("admin"), updateUserRole);
 
 export default router

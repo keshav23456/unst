@@ -6,10 +6,11 @@ export const verifyHackathonOwner = async (req, res, next) => {
         // Some routes identify the hackathon by :id, others by :name — this
         // used to only ever read :id, so it silently 404'd on every
         // :name-based route (submissions, announce-winners).
-        const { id, name } = req.params;
+        const { id, name, hackathonId } = req.params;
 
-        const hackathon = id
-            ? await Hackathon.findById(id)
+        const lookupId = id || hackathonId;
+        const hackathon = lookupId
+            ? await Hackathon.findById(lookupId)
             : await Hackathon.findOne({ name });
 
         if (!hackathon) return res.status(404).json({ message: "Hackathon not found" });

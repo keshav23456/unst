@@ -81,3 +81,45 @@ Grouped by area. Each entry: what was wrong → what changed. See FLOWS_AND_BUGS
 ## Not removed (left as-is, noted for awareness)
 
 - `src/contracts/` folder, `src/store/contractSlice.js`, `WalletBox.jsx`, `MetaMaskAuth.jsx` — still present in the frontend tree. `contractSlice` was already unused (not wired into the Redux store) before this pass. `WalletBox`/`MetaMaskAuth` are linked into `Header.jsx` and removing them would require reworking that component; they don't call the backend `/metamask` route (which was removed), so they're inert rather than broken. Full removal was out of scope for this pass — flagged here if you want to do it later.
+
+## RBAC implementation (added after deployment)
+
+Three-tier role-based access control: `admin`, `organizer`, `participant`. Previously there was no `role` field at all — only ownership checks (see the ownership table above, which RBAC now sits on top of rather than replaces).
+
+| File | What was added |
+|---|---|
+| `backend/src/models/user.model.js` | Added `role` field (`admin \| organizer \| participant`, default `participant`). Included in the JWT access token payload so downstream checks don't need an extra DB read. |
+| `backend/src/middleware/requireRole.middleware.js` | New file. `requireRole(...roles)` gates a route to specific roles (401 if not authenticated, 403 if wrong role). `requireOwnerOrAdmin(verifyHackathonOwner)` lets admins bypass the ownership check entirely, while organizers still only manage hackathons they own. |
+| `backend/src/controllers/hackathon.controllers.js` — `registerHackathon` | Auto-promotes a `participant` to `organizer` the first time they create a hackathon (doesn't downgrade an existing admin). Requiring the organizer role *before* letting someone create their first hackathon would make it impossible to ever become one. |
+| `backend/src/controllers/hackathon.controllers.js` | New `deleteHackathon` controller, admin-only. Includes proper cascade delete (Round/Team/Submission cleanup + removing the hackathon from any user's `ownedHackathons`) — this endpoint never existed before, so this also closes the cascade-delete gap flagged in the original audit. |
+| `backend/src/routes/hackathonOrganizer.routes.js` | `add round`, `submissions`, `announce-winners` now require `requireRole("organizer","admin")` + `requireOwnerOrAdmin` (ownership check, bypassed for admins). New `DELETE /:id/delete` route, admin-only. |
+| `backend/src/controllers/user.controllers.js` | New `getAllUsers` controller, admin-only — flat list of all users with their roles, no pagination (kept simple per requirements). |
+| `backend/src/routes/user.routes.js` | New `GET /admin/users` route, gated with `requireRole("admin")`. |
+| `frontend/src/components/AdminRoute.jsx` | New file. Frontend route guard — redirects non-admins away from `/admin`. This is a UX convenience only; the real enforcement is the backend's `requireRole` middleware. |
+| `frontend/src/components/AdminDashboard.jsx` | New file. Simple admin page: table of all users with their roles, table of all hackathons with a delete button. |
+| `frontend/src/backend/admin.js` | New file. `getAllUsers()` and `deleteHackathon(id)` API calls. |
+| `frontend/src/main.jsx` | New `/admin` route, wrapped in `AdminRoute`. New `/resources` route. |
+| `frontend/src/components/Header/Header.jsx` | Admin nav link, shown only when `userData.role === "admin"`. Also fixed a pre-existing bug: the mobile menu's "Resources" link pointed to `/` instead of `/resources`. |
+
+**How roles are assigned in practice:** everyone starts as `participant` on signup. Creating a hackathon auto-promotes to `organizer`. There is no self-service way to become `admin` — that has to be set directly in the database (MongoDB Atlas → Browse Collections → `users` → edit a user's `role` field to `"admin"`) since giving anyone a UI path to self-promote to admin would defeat the purpose of the tier.
+
+## Resources page (new)
+
+`frontend/src/components/Resources.jsx` — static informational page at `/resources` (previously a dead nav link with no matching route at all). Tabbed content: participant guide (how participating works, useful/necessary things), organizer guide (how to organize, tips), judging criteria (how it works, common criteria, advice for participants), and an FAQ. No backend calls — pure static content.
+
+## RBAC (admin / organizer / participant)
+
+| Area | Change |
+|---|---|
+| `User.role` | enum `admin \| organizer \| participant`, default `participant` |
+| Assigning roles | Chosen at signup (participant/organizer only; anything else, including `admin`, is ignored). `ADMIN_EMAIL` env var bootstraps the first admin on login/signup (works on hosts with no shell). Admins change other users' roles via `PUT /api/v1/user/admin/users/:id/role` (not their own; PUT because CORS doesn't allow PATCH). |
+| `requireRole(...roles)` | New middleware after `verifyJWT`. 401 if unauthenticated, 403 if the role isn't allowed. Role comes from the DB, not the JWT, so changes apply immediately. |
+| Hackathon creation | Now `organizer`/`admin` only (was open to everyone, with silent auto-promotion on first create). `requireRole` runs before multer so rejected users never write a file. |
+| Rounds / winners / view submissions | `organizer`/`admin` + ownership check; admins bypass ownership. |
+| Delete hackathon | Admin only, with cascade delete of rounds, teams and submissions. |
+| **`delete-submissions` / `fetch-submissions`** | Were open to *any* signed-in user (anyone could wipe another hackathon's submissions). Now organizer/admin + ownership. |
+| Teams and submissions | Creating/joining a team and submitting are `participant` actions. `createSubmission` also verifies the caller is a member of that team. |
+| **Bug in my earlier fix** | Fixing the duplicate-submission check made it one submission per team *forever*, which blocked round 2. Submissions now carry `roundNumber`; uniqueness is per team per round. |
+| **`/current-user` leak** | `verifyJWT` loaded the whole user document and `/current-user` returned it, sending the password hash and refresh tokens to the browser. Now excluded. |
+| Signup | Success check looked for a `status` field my earlier rewrite had removed, so signup never redirected. Fixed. |
+| Frontend | `RoleRoute` guards pages by role and waits for the session check (no bounce-to-login on refresh); header shows *Organize* / *Admin* by role; signup has a role picker; EventPage shows manage controls for owner/admin and *Register* only for participants; admin dashboard can change roles; role-aware Resources page. |

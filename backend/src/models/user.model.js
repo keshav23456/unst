@@ -21,6 +21,15 @@ const userSchema = new mongoose.Schema(
     walletAddress:{
       type:String
     },
+    // RBAC: three tiers. participant is the default — anyone who signs up
+    // starts here. organizer and admin are elevated roles; organizer can
+    // create/manage their own hackathons (still gated by ownership checks
+    // on top of this), admin can manage any hackathon and view all users.
+    role: {
+      type: String,
+      enum: ["admin", "organizer", "participant"],
+      default: "participant",
+    },
     // Array, not a single string: logging in on a second device used to
     // overwrite the first device's token, silently logging it out on its
     // next refresh attempt. Each entry is one active session.
@@ -56,7 +65,8 @@ userSchema.methods.generateAccessToken = async function(){
         {
             _id:this._id,
             name:this.name,
-            email:this.email
+            email:this.email,
+            role:this.role
         },
         process.env.ACCESS_TOKEN_SECRET,
         {

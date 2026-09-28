@@ -79,6 +79,9 @@ function EventPage() {
       fetchData();
   },[])
   
+  const canManage = isOwner || user?.role === "admin"
+  const canParticipate = !user || user?.role === "participant"
+
   //checking the owner
   useEffect(() => {
     if (!user || !user.ownedHackathons || !hackathon) return; // ✅ Ensure both user & hackathon exist
@@ -141,7 +144,7 @@ function EventPage() {
           </p>
 
           <div className="flex flex-wrap gap-6 items-center">
-            {isOwner?
+            {canManage?
             <div className='flex'>
               <Link to={`/${hackathon._id}/rounds/add`}>
               <motion.button
@@ -165,7 +168,7 @@ function EventPage() {
               
             </div>
             
-            :
+            : !canParticipate ? null :
             <div className='flex'>
             <Link to={`/${hackathon._id}/participants`}><motion.button
               whileHover={{ scale: 1.05 }}

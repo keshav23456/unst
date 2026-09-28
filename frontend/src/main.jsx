@@ -17,6 +17,9 @@ import TeamDashboard from './components/TeamDashboard.jsx'
 import Participants from './components/Participants.jsx'
 import CreateTeam from './components/CreateTeam.jsx'
 import SubmissionList from './components/SubmissionList.jsx'
+import Resources from './components/Resources.jsx'
+import AdminDashboard from './components/AdminDashboard.jsx'
+import RoleRoute from './components/RoleRoute.jsx'
 
 
 const router = createBrowserRouter([
@@ -47,9 +50,9 @@ const router = createBrowserRouter([
       {
         path: "/organize",
         element:(
-        <AuthLayout authentication={true}>
+        <RoleRoute roles={["organizer","admin"]} fallback="/resources">
           <OrganizeEventForm/>
-        </AuthLayout>)
+        </RoleRoute>)
       },
       {
         path: "/about",
@@ -72,41 +75,55 @@ const router = createBrowserRouter([
       {
         path:"/:id/rounds/add",
         element:(
-          <AuthLayout authentication={true}>
+          <RoleRoute roles={["organizer","admin"]} fallback="/resources">
           <AddRound/>
-          </AuthLayout>
+          </RoleRoute>
         )
       },
       {
         path: "/:id/participants",
         element:(
-          <AuthLayout authentication={true}>
+          <RoleRoute roles={["participant"]} fallback="/resources">
             <TeamDashboard/>
-          </AuthLayout>
+          </RoleRoute>
         )
       },
       {
         path: "/team/:hackathonId/:teamId",
         element:(
-          <AuthLayout authentication={true}>
+          <RoleRoute roles={["participant"]} fallback="/resources">
             <Participants/>
-          </AuthLayout>
+          </RoleRoute>
         )
       },
       {
         path:"/:hackathonId/create-team",
         element:(
-          <AuthLayout authentication = {true}>
+          <RoleRoute roles={["participant"]} fallback="/resources">
             <CreateTeam/>
-          </AuthLayout>
+          </RoleRoute>
         )
       },
       {
         path:"/submissions/:hackathonId",
         element:(
-          <AuthLayout authentication={true}>
+          <RoleRoute roles={["organizer","admin"]}>
             <SubmissionList/>
-          </AuthLayout>
+          </RoleRoute>
+        )
+      },
+      {
+        path: "/resources",
+        element: (
+          <Resources/>
+        )
+      },
+      {
+        path: "/admin",
+        element: (
+          <RoleRoute roles={["admin"]}>
+            <AdminDashboard/>
+          </RoleRoute>
         )
       }
     ]

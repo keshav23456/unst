@@ -18,6 +18,10 @@ const SubmissionSchema = new mongoose.Schema({
     type:String,
     required:true
   },
+  roundNumber: {
+    type: Number,
+    required: true,
+  },
   submittedAt: { 
     type: Date, 
     default: Date.now 

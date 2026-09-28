@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken'
 import { User } from '../models/user.model.js'
 import uploadOnCloudinary from '../utils/cloudinary.js'
+import mongoose from 'mongoose'
+import { ROLES, ROLE_LIST, isAdminEmail, resolveRegistrationRole } from '../constants/roles.js'
 
 const COOKIE_OPTIONS = {
     httpOnly: true,
@@ -30,7 +32,7 @@ const generateAccessAndRefreshTokens = async (userId) => {
 
 export const registerUser = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, password, role: requestedRole } = req.body;
 
         if ([name, email, password].some((field) => !field || field.trim() === "")) {
             return res.status(400).json({ message: "Please fill all the fields" });
@@ -41,7 +43,9 @@ export const registerUser = async (req, res) => {
             return res.status(400).json({ message: "User already exists" });
         }
 
-        const user = await User.create({ name, email, password });
+        // Role comes from resolveRegistrationRole: participant/organizer are
+        // self-selectable; "admin" is ignored unless the email is ADMIN_EMAIL.
+        const user = await User.create({ name, email, password, role: resolveRegistrationRole(email, requestedRole) });
 
         const accessToken = await user.generateAccessToken();
         const refreshToken = await user.generateRefreshToken();
@@ -53,7 +57,7 @@ export const registerUser = async (req, res) => {
             .cookie("accessToken", accessToken, COOKIE_OPTIONS)
             .cookie("refreshToken", refreshToken, COOKIE_OPTIONS)
             .json({
-                user: { _id: user._id, name: user.name, email: user.email },
+                user: { _id: user._id, name: user.name, email: user.email, role: user.role },
                 message: "User created successfully",
             });
     } catch (error) {
@@ -75,6 +79,13 @@ export const loginUser = async (req, res) => {
 
         const isMatch = await user.isPasswordCorrect(password);
         if (!isMatch) return res.status(401).json({ message: "Invalid user credentials" });
+
+        // Admin bootstrap: the account whose email matches ADMIN_EMAIL is
+        // promoted to admin on login (works on hosts with no shell access).
+        if (isAdminEmail(user.email) && user.role !== ROLES.ADMIN) {
+            user.role = ROLES.ADMIN;
+            await user.save({ validateBeforeSave: false });
+        }
 
         const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
 
@@ -224,5 +235,48 @@ export const updateUserAvatar = async (req, res) => {
     } catch (error) {
         console.error("Error while updating avatar:", error.message);
         return res.status(500).json({ message: "Failed to update avatar" });
+    }
+};
+
+// Admin-only. Kept deliberately simple: a flat list, no pagination or
+// filtering — enough for an admin to see who's on the platform and what
+// role each user has.
+export const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find().select("-password -refreshTokens");
+        return res.status(200).json({ users });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only. Changes another user's role. An admin can't change their own
+// role (prevents accidentally locking the platform out of its last admin).
+// Note: the ADMIN_EMAIL account is re-promoted on its next login.
+export const updateUserRole = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!mongoose.isValidObjectId(id)) {
+            return res.status(400).json({ message: "Invalid user id" });
+        }
+        if (!ROLE_LIST.includes(role)) {
+            return res.status(400).json({ message: `Role must be one of: ${ROLE_LIST.join(", ")}` });
+        }
+        if (req.user._id.equals(id)) {
+            return res.status(400).json({ message: "You cannot change your own role" });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            id,
+            { $set: { role } },
+            { new: true, runValidators: true }
+        ).select("-password -refreshTokens");
+        if (!user) return res.status(404).json({ message: "User not found" });
+
+        return res.status(200).json({ user, message: "Role updated" });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
     }
 };
